@@ -13,71 +13,98 @@ type Person struct {
 	Lastname string `json:"lastname"`
 }
 
-var persons []Person
+type PersonController struct {
+	persons []Person
+}
 
 func main() {
 
 	r := gin.Default()
 	defer r.Run(":8080")
 
-	r.GET("/person", getPersons)
-	r.GET("/person/:id", getPerson)
-	r.POST("person", createPerson)
-	r.PUT("person/id", updatePerson)
-	r.DELETE("person/id", deletePerson)
+	pc := &PersonController{
+		persons: []Person{},
+	}
+
+	r.GET("/person", pc.getPersons)
+	r.GET("/person/:id", pc.getPerson)
+	r.POST("person", pc.createPerson)
+	r.PUT("/person/:id", pc.updatePerson)
+	r.DELETE("/person/:id", pc.deletePerson)
 
 }
 
-func getPersons(c *gin.Context) {
-	c.JSON(http.StatusOK, persons)
+func (pc *PersonController) getPersons(c *gin.Context) {
+	c.JSON(http.StatusOK, pc.persons)
 }
 
-func getPerson(c *gin.Context) {
-	id := c.Param("id")
-	for _, u := range persons {
-		if strconv.Itoa(u.ID) == id {
-			c.JSON(http.StatusOK, u)
+func (pc *PersonController) getPerson(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for _, person := range pc.persons {
+		if person.ID == id {
+			c.JSON(http.StatusOK, person)
 			return
 		}
 	}
-	c.JSON(http.StatusNotFound, gin.H{"error": "that person doesn't exist"})
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "personn not found"})
 }
 
-func createPerson(c *gin.Context) {
+func (pc *PersonController) createPerson(c *gin.Context) {
 	var person Person
 	err := c.BindJSON(&person)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
-	person.ID = len(persons) + 1
-	persons = append(persons, person)
+	person.ID = len(pc.persons) + 1
+	pc.persons = append(pc.persons, person)
+
 	c.JSON(http.StatusCreated, person)
 }
-func updatePerson(c *gin.Context) {
-	id := c.Param("id")
-	var NewPerson Person
-	err := c.BindJSON(&NewPerson)
+
+func (pc *PersonController) updatePerson(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+	var newPerson Person
+	if err := c.BindJSON(&newPerson); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	for i, u := range persons {
-		if strconv.Itoa(u.ID) == id {
-			NewPerson.ID = u.ID
-			persons[i] = NewPerson
-			c.JSON(http.StatusOK, NewPerson)
-		}
-	}
-}
 
-func deletePerson(c *gin.Context) {
-	id := c.Param("id")
-	for i, u := range persons {
-		if strconv.Itoa(u.ID) == id {
-			persons = append(persons[:i], persons[i+1:]...)
-			c.JSON(http.StatusOK, gin.H{"message": "User Delete"})
+	for i, person := range pc.persons {
+		if person.ID == id {
+			newPerson.ID = id
+			pc.persons[i] = newPerson
+
+			c.JSON(http.StatusOK, newPerson)
 			return
 		}
 	}
-	c.JSON(http.StatusNotFound, gin.H{"error": "Person Not Found"})
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "person not found"})
+}
+
+func (pc *PersonController) deletePerson(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	for i, person := range pc.persons {
+		if person.ID == id {
+			pc.persons = append(pc.persons[:i], pc.persons[i+1:]...)
+
+			c.Status(http.StatusNoContent)
+			return
+		}
+	}
+
+	c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "item not found"})
+
 }
